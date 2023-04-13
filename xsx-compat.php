@@ -56,6 +56,7 @@ function _using_block_function() {
 
 	if ( strpos( $trace[1]['file'], get_template_directory() ) === 0  ) {
 		// Theme
+		trigger_error('theme');
 	} else {
 		// A plugin is calling the function
 		$plugins = array_intersect( array_column( $trace, 'file' ), wp_get_active_and_valid_plugins() );
@@ -67,12 +68,7 @@ function _using_block_function() {
 		}
 
 		$plugins_using_blocks = get_option( 'plugins_using_blocks', array() );
-		if ( in_array( $plugin, array_column( $plugins_using_blocks, 'file' ) ) ) {
-			// We already have this listed.
-			return;
-		}
-
-		if ( ! array_key_exists( $plugin, $plugins_using_blocks ) ) {
+		if ( ! array_key_exists( plugin_basename( $plugin ), $plugins_using_blocks ) ) {
 			$plugins_using_blocks[ plugin_basename( $plugin ) ] = true;
 			update_option( 'plugins_using_blocks', $plugins_using_blocks );
 		}
@@ -82,7 +78,7 @@ function _using_block_function() {
 
 if ( WP_COMPATIBILITY_MODE === 2 ) :
 
-	add_action( 'after_plugin_row', '_using_block_function_row', 10, 2 );
+	add_action( 'after_plugin_row', '_using_block_function_row', 0, 2 );
 	/**
 	 * Action hooked to after_plugin_row to display plugins that may not work properly.
 	 *
@@ -99,9 +95,7 @@ if ( WP_COMPATIBILITY_MODE === 2 ) :
 		$wp_list_table = _get_list_table('WP_Plugins_List_Table');
 		$active        = is_plugin_active( $plugin_file ) ? 'active' : '';
 		?>
-		<script>
-			jQuery('tr[data-plugin="<?php echo $plugin_file ?>"]').addClass('update');
-		</script>
+
 		<tr class="plugin-update-tr <?php echo $active ?>">
 			<td colspan="<?php echo $wp_list_table->get_column_count(); ?>" class="plugin-update colspanchange">
 				<div class="notice inline notice-alt notice-warning">
@@ -114,6 +108,9 @@ if ( WP_COMPATIBILITY_MODE === 2 ) :
 				</div>
 			</td>
 		</tr>
+		<script>
+			jQuery('tr[data-plugin="<?php echo $plugin_file ?>"]').addClass('update');
+		</script>
 		<?php
 	}
 
