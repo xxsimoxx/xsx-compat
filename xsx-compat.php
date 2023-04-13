@@ -9,8 +9,8 @@
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  */
 
-if (!defined('ABSPATH')) {
-	die('-1');
+if ( ! defined( 'ABSPATH' ) ) {
+	die;
 }
 
 if ( ! defined( 'WP_COMPATIBILITY_MODE' ) ) {
@@ -28,7 +28,7 @@ if ( ! defined( 'WP_COMPATIBILITY_MODE' ) ) {
 	define( 'WP_COMPATIBILITY_MODE', 1 );
 }
 
-if ( WP_COMPATIBILITY_MODE === 0) {
+if ( WP_COMPATIBILITY_MODE === 0 ) {
 	return;
 }
 
@@ -39,12 +39,12 @@ if ( WP_COMPATIBILITY_MODE === 0) {
  * @return void
  */
 function _using_block_function() {
-	if ( WP_COMPATIBILITY_MODE === 1) {
+	if ( WP_COMPATIBILITY_MODE === 1 ) {
 		return;
 	}
 
 	$trace = debug_backtrace();
-	if ( strpos( $trace[1]['file'], get_stylesheet_directory() ) === 0  ) {
+	if ( strpos( $trace[1]['file'], get_stylesheet_directory() ) === 0 ) {
 		// Current theme is calling the function
 		update_option( 'theme_using_blocks', '1' );
 	} elseif ( strpos( $trace[1]['file'], get_template_directory() ) === 0 ) {
@@ -55,7 +55,7 @@ function _using_block_function() {
 		$plugins = array_intersect( array_column( $trace, 'file' ), wp_get_active_and_valid_plugins() );
 		unset( $plugins[ array_search( __FILE__, $plugins ) ] ); // Remove ourself
 		$plugin = array_pop( $plugins );
-		if ( $plugin === null) {
+		if ( $plugin === null ) {
 			// Nothing found? Bail.
 			return;
 		}
@@ -71,11 +71,11 @@ function _using_block_function() {
 
 if ( WP_COMPATIBILITY_MODE === 2 ) :
 
-	add_action( 'after_plugin_row'         , '_using_block_function_row'  , 10, 2 );
-	add_action( 'upgrader_process_complete', '_update_who_uses_blocks'    , 10, 2 );
-	add_action( 'delete_plugin'            , '_delete_who_uses_blocks'    , 10, 1 );
-	add_action( 'admin_notices'            , '_using_block_function_theme', 10, 0 );
-	add_action( 'after_switch_theme'       , '_delete_theme_uses_blocks'  , 10, 0 );
+	add_action( 'after_plugin_row', '_using_block_function_row', 10, 2 );
+	add_action( 'upgrader_process_complete', '_update_who_uses_blocks', 10, 2 );
+	add_action( 'delete_plugin', '_delete_who_uses_blocks', 10, 1 );
+	add_action( 'admin_notices', '_using_block_function_theme', 10, 0 );
+	add_action( 'after_switch_theme', '_delete_theme_uses_blocks', 10, 0 );
 
 	/**
 	 * Action hooked to after_plugin_row to display plugins that may not work properly.
@@ -86,27 +86,27 @@ if ( WP_COMPATIBILITY_MODE === 2 ) :
 	 */
 	function _using_block_function_row( $plugin_file, $plugin_data ) {
 		$plugins_using_blocks = get_option( 'plugins_using_blocks', array() );
-		if( ! array_key_exists( $plugin_file, $plugins_using_blocks ) ) {
+		if ( ! array_key_exists( $plugin_file, $plugins_using_blocks ) ) {
 			return;
 		}
 
-		$wp_list_table = _get_list_table('WP_Plugins_List_Table');
+		$wp_list_table = _get_list_table( 'WP_Plugins_List_Table' );
 		$active        = is_plugin_active( $plugin_file ) ? 'active' : '';
 		?>
-		<tr class="plugin-update-tr <?php echo $active ?>">
+		<tr class="plugin-update-tr <?php echo $active; ?>">
 			<td colspan="<?php echo $wp_list_table->get_column_count(); ?>" class="plugin-update colspanchange">
 				<div class="notice inline notice-alt notice-warning">
 					<p>
 						<?php
 						// Translators: %1$s is the plugin name.
-						printf ( esc_html__( '%1$s uses block-related functions and may not work correctly.' ), $plugin_data['Name'] );
+						printf( esc_html__( '%1$s uses block-related functions and may not work correctly.' ), $plugin_data['Name'] );
 						?>
 					</p>
 				</div>
 			</td>
 		</tr>
 		<script>
-			jQuery('tr[data-plugin="<?php echo $plugin_file ?>"]').addClass('update');
+			jQuery('tr[data-plugin="<?php echo $plugin_file; ?>"]').addClass('update');
 		</script>
 		<?php
 	}
@@ -134,9 +134,9 @@ if ( WP_COMPATIBILITY_MODE === 2 ) :
 		}
 
 		$plugins_using_blocks = get_option( 'plugins_using_blocks', array() );
-		foreach ($options['plugins'] as $plugin) {
+		foreach ( $options['plugins'] as $plugin ) {
 			if ( array_key_exists( $plugin, $plugins_using_blocks ) ) {
-				unset( $plugins_using_blocks[$plugin] );
+				unset( $plugins_using_blocks[ $plugin ] );
 			}
 		}
 		update_option( 'plugins_using_blocks', $plugins_using_blocks );
@@ -152,7 +152,7 @@ if ( WP_COMPATIBILITY_MODE === 2 ) :
 	function _delete_who_uses_blocks( $plugin_file ) {
 		$plugins_using_blocks = get_option( 'plugins_using_blocks', array() );
 		if ( array_key_exists( $plugin_file, $plugins_using_blocks ) ) {
-			unset( $plugins_using_blocks[$plugin_file] );
+			unset( $plugins_using_blocks[ $plugin_file ] );
 		}
 		update_option( 'plugins_using_blocks', $plugins_using_blocks );
 	}
@@ -163,9 +163,9 @@ if ( WP_COMPATIBILITY_MODE === 2 ) :
 	 *
 	 * @return void
 	 */
-	function _using_block_function_theme( ) {
+	function _using_block_function_theme() {
 		global $pagenow;
-		if ( $pagenow !== 'themes.php') {
+		if ( $pagenow !== 'themes.php' ) {
 			return;
 		}
 		$theme_using_blocks = get_option( 'theme_using_blocks', '0' );
@@ -173,12 +173,12 @@ if ( WP_COMPATIBILITY_MODE === 2 ) :
 			return;
 		}
 
-		if( $theme_using_blocks === '1' ) {
+		if ( $theme_using_blocks === '1' ) {
 			// Translators: %1$s is the theme name.
-			$message = sprintf ( esc_html__( '%1$s uses block-related functions and may not work correctly.' ), wp_get_theme()->get('Name') );
+			$message = sprintf( esc_html__( '%1$s uses block-related functions and may not work correctly.' ), wp_get_theme()->get( 'Name' ) );
 		} else {
 			// Translators: %1$s is the theme name, %1$s is the parent theme name.
-			$message = sprintf ( esc_html__( '%1$s parent theme (%2$s) uses block-related functions and may not work correctly.' ), wp_get_theme()->get('Name'), wp_get_theme()->parent()->get('Name') );
+			$message = sprintf( esc_html__( '%1$s parent theme (%2$s) uses block-related functions and may not work correctly.' ), wp_get_theme()->get( 'Name' ), wp_get_theme()->parent()->get( 'Name' ) );
 		}
 
 		?>
@@ -197,45 +197,45 @@ if ( WP_COMPATIBILITY_MODE === 2 ) :
 	 *
 	 * @return void
 	 */
-	function _delete_theme_uses_blocks( ) {
+	function _delete_theme_uses_blocks() {
 		update_option( 'theme_using_blocks', '0' );
 	}
 
 endif; // WP_COMPATIBILITY_MODE === 2
 
-if (!function_exists('register_block_type')) :
+if ( ! function_exists( 'register_block_type' ) ) :
 
-	function register_block_type(...$args) {
+	function register_block_type( ...$args ) {
 		_using_block_function();
 		return false;
 	}
 
 endif;
 
-if (!function_exists('register_block_type_from_metadata')) :
+if ( ! function_exists( 'register_block_type_from_metadata' ) ) :
 
-	function register_block_type_from_metadata(...$args) {
+	function register_block_type_from_metadata( ...$args ) {
 		_using_block_function();
 		return false;
 	}
 
 endif;
 
-if (!function_exists('register_block_pattern')) :
+if ( ! function_exists( 'register_block_pattern' ) ) :
 
-	function register_block_pattern(...$args) {
+	function register_block_pattern( ...$args ) {
 		_using_block_function();
 		return false;
 	}
 
 endif;
 
-if (function_exists('runkit7_method_add')) :
+if ( function_exists( 'runkit7_method_add' ) ) :
 
 	runkit7_method_add(
 		'WP_Screen',
 		'is_block_editor',
-		function ($set) {
+		function ( $set ) {
 			_using_block_function();
 			return false;
 		},
