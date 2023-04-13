@@ -1,29 +1,61 @@
 <?php
 /**
  * Plugin Name: Compat
- * Plugin URI: https://software.gieffeedizioni.it
- * Description: Better ClassicPress compatibility for WP plugins.
+ * Description: Test better ClassicPress compatibility for WP plugins.
  * Version: 0.0.1
  * Requires CP: 2.0
  * Requires PHP: 7.4
  * License: GPL2
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
- * Author: Gieffe edizioni srl
- * Author URI: https://www.gieffeedizioni.it
- * Text Domain: xsx-compat
- * Domain Path: /languages
  */
 
 if (!defined('ABSPATH')) {
 	die('-1');
 }
 
-function _using_block_function( $function ) {
+/*
+ *
+ * Compatibility mode:
+ * 0: disabled
+ * 1: enabled but without logs
+ * 2: enabled and warn about plugins that may not work properly
+ *
+ */
+
+if ( ! defined( 'WP_COMPATIBILITY_MODE' ) ) {
+	/**
+	 * WP_COMPATIBILITY_MODE constant set the operation mode.
+	 * 0: disabled
+	 * 1: enabled but without logs
+	 * 2: enabled and warn about plugins that may not work properly
+	 * Default: 1
+	 * This constant have to be defined in wp-config.php
+	 *
+	 * @var int
+	 *
+	 */
+	define( 'WP_COMPATIBILITY_MODE', 1 );
+}
+
+if ( WP_COMPATIBILITY_MODE === 0) {
+	return;
+}
+
+/**
+ * This function have to be called from a polyfill
+ * to map themes and plugins calling those functions.
+ *
+ * @return void
+ */
+function _using_block_function() {
+	if ( WP_COMPATIBILITY_MODE === 1) {
+		return;
+	}
+
 	$trace = debug_backtrace();
 
 	if ( strpos( $trace[1]['file'], get_template_directory() ) === 0  ) {
-		// A theme is calling the function
-
+		// Theme
 	} else {
 		// A plugin is calling the function
 		$plugins = array_intersect( array_column( $trace, 'file' ), wp_get_active_and_valid_plugins() );
@@ -40,31 +72,96 @@ function _using_block_function( $function ) {
 			return;
 		}
 
-		$data = get_plugin_data($plugin);
-		$plugins_using_blocks[] = array(
-			'file' => $plugin,
-			'name' => esc_html($data['Name']),
-		);
+		if ( ! array_key_exists( $plugin, $plugins_using_blocks ) ) {
+			$plugins_using_blocks[ plugin_basename( $plugin ) ] = true;
+			update_option( 'plugins_using_blocks', $plugins_using_blocks );
+		}
+	}
+}
 
+
+if ( WP_COMPATIBILITY_MODE === 2 ) :
+
+	add_action( 'after_plugin_row', '_using_block_function_row', 10, 2 );
+	/**
+	 * Action hooked to after_plugin_row to display plugins that may not work properly.
+	 *
+	 * @param string $plugin_file
+	 * @param array  $plugin_data
+	 * @return void
+	 */
+	function _using_block_function_row( $plugin_file, $plugin_data ) {
+		$plugins_using_blocks = get_option( 'plugins_using_blocks', array() );
+		if( ! array_key_exists( $plugin_file, $plugins_using_blocks ) ) {
+			return;
+		}
+
+		$wp_list_table = _get_list_table('WP_Plugins_List_Table');
+		$active        = is_plugin_active( $plugin_file ) ? 'active' : '';
+		?>
+		<script>
+			jQuery('tr[data-plugin="<?php echo $plugin_file ?>"]').addClass('update');
+		</script>
+		<tr class="plugin-update-tr <?php echo $active ?>">
+			<td colspan="<?php echo $wp_list_table->get_column_count(); ?>" class="plugin-update colspanchange">
+				<div class="notice inline notice-alt notice-warning">
+					<p>
+						<?php
+						// Translators: %1$s is the plugin name.
+						printf ( esc_html__( '%1$s uses block-related functions and may not work correctly.' ), $plugin_data['Name'] );
+						?>
+					</p>
+				</div>
+			</td>
+		</tr>
+		<?php
+	}
+
+	add_action( 'upgrader_process_complete', '_update_who_uses_blocks', 10, 2 );
+	/**
+	 * Action hooked to upgrader_process_complete to clean up the list of plugins
+	 * that may not work properly.
+	 *
+	 * @param WP_Upgrader $upgrader
+	 * @param array       $options
+	 * @return void
+	 */
+	function _update_who_uses_blocks( $upgrader, $options ) {
+		if ( $options['action'] !== 'update' || $options['type'] !== 'plugin' ) {
+			return;
+		}
+
+		$plugins_using_blocks = get_option( 'plugins_using_blocks', array() );
+		foreach ($options['plugins'] as $plugin) {
+			if ( array_key_exists( $plugin, $plugins_using_blocks ) ) {
+				unset( $plugins_using_blocks[$plugin] );
+			}
+		}
 		update_option( 'plugins_using_blocks', $plugins_using_blocks );
 	}
-}
 
-add_action( 'upgrader_process_complete', 'remove_updated_plugins_from_plugins_using_blocks', 10, 2 );
-function remove_updated_plugins_from_plugins_using_blocks( $upgrader, $options ) {
-	if ( $options['action'] !== 'update' || $options['type'] !== 'plugin' ) {
-		return;
+	add_action( 'delete_plugin', '_delete_who_uses_blocks', 10, 1 );
+	/**
+	 * Action hooked to delete_plugin to remove the plugin
+	 * that may not work properly.
+	 *
+	 * @param string       $options
+	 * @return void
+	 */
+	function _delete_who_uses_blocks( $plugin_file ) {
+		$plugins_using_blocks = get_option( 'plugins_using_blocks', array() );
+		if ( array_key_exists( $plugin_file, $plugins_using_blocks ) ) {
+			unset( $plugins_using_blocks[$plugin_file] );
+		}
+		update_option( 'plugins_using_blocks', $plugins_using_blocks );
 	}
-	foreach ($options['plugins'] as $plugin) {
-		trigger_error('Updated '.$plugin);
-		// Updated codepotent-head-cleaner/codepotent-head-cleaner.php in /Users/simo/Sites/ClassicPress-v2/src/wp-content/plugins/xsx-compat/xsx-compat.php on line 59
-	}
-}
+
+endif; // WP_COMPATIBILITY_MODE === 2
 
 if (!function_exists('register_block_type')) :
 
 	function register_block_type(...$args) {
-		_using_block_function(__FUNCTION__);
+		_using_block_function();
 		return false;
 	}
 
@@ -73,6 +170,7 @@ endif;
 if (!function_exists('register_block_type_from_metadata')) :
 
 	function register_block_type_from_metadata(...$args) {
+		_using_block_function();
 		return false;
 	}
 
@@ -81,6 +179,7 @@ endif;
 if (!function_exists('register_block_pattern')) :
 
 	function register_block_pattern(...$args) {
+		_using_block_function();
 		return false;
 	}
 
@@ -92,6 +191,7 @@ if (function_exists('runkit7_method_add')) :
 		'WP_Screen',
 		'is_block_editor',
 		function ($set) {
+			_using_block_function();
 			return false;
 		},
 		RUNKIT7_ACC_PUBLIC,
