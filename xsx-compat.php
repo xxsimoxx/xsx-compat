@@ -13,15 +13,6 @@ if (!defined('ABSPATH')) {
 	die('-1');
 }
 
-/*
- *
- * Compatibility mode:
- * 0: disabled
- * 1: enabled but without logs
- * 2: enabled and warn about plugins that may not work properly
- *
- */
-
 if ( ! defined( 'WP_COMPATIBILITY_MODE' ) ) {
 	/**
 	 * WP_COMPATIBILITY_MODE constant set the operation mode.
@@ -53,10 +44,12 @@ function _using_block_function() {
 	}
 
 	$trace = debug_backtrace();
-
-	if ( strpos( $trace[1]['file'], get_template_directory() ) === 0  ) {
-		// Theme
-		trigger_error('theme');
+	if ( strpos( $trace[1]['file'], get_stylesheet_directory() ) === 0  ) {
+		// Current theme is calling the function
+		update_option( 'theme_using_blocks', '1' );
+	} elseif ( strpos( $trace[1]['file'], get_template_directory() ) === 0 ) {
+		// Parent theme is calling the function
+		update_option( 'theme_using_blocks', '2' );
 	} else {
 		// A plugin is calling the function
 		$plugins = array_intersect( array_column( $trace, 'file' ), wp_get_active_and_valid_plugins() );
@@ -78,7 +71,12 @@ function _using_block_function() {
 
 if ( WP_COMPATIBILITY_MODE === 2 ) :
 
-	add_action( 'after_plugin_row', '_using_block_function_row', 0, 2 );
+	add_action( 'after_plugin_row'         , '_using_block_function_row'  , 10, 2 );
+	add_action( 'upgrader_process_complete', '_update_who_uses_blocks'    , 10, 2 );
+	add_action( 'delete_plugin'            , '_delete_who_uses_blocks'    , 10, 1 );
+	add_action( 'admin_notices'            , '_using_block_function_theme', 10, 0 );
+	add_action( 'after_switch_theme'       , '_delete_theme_uses_blocks'  , 10, 0 );
+
 	/**
 	 * Action hooked to after_plugin_row to display plugins that may not work properly.
 	 *
@@ -95,7 +93,6 @@ if ( WP_COMPATIBILITY_MODE === 2 ) :
 		$wp_list_table = _get_list_table('WP_Plugins_List_Table');
 		$active        = is_plugin_active( $plugin_file ) ? 'active' : '';
 		?>
-
 		<tr class="plugin-update-tr <?php echo $active ?>">
 			<td colspan="<?php echo $wp_list_table->get_column_count(); ?>" class="plugin-update colspanchange">
 				<div class="notice inline notice-alt notice-warning">
@@ -114,7 +111,6 @@ if ( WP_COMPATIBILITY_MODE === 2 ) :
 		<?php
 	}
 
-	add_action( 'upgrader_process_complete', '_update_who_uses_blocks', 10, 2 );
 	/**
 	 * Action hooked to upgrader_process_complete to clean up the list of plugins
 	 * that may not work properly.
@@ -124,7 +120,16 @@ if ( WP_COMPATIBILITY_MODE === 2 ) :
 	 * @return void
 	 */
 	function _update_who_uses_blocks( $upgrader, $options ) {
-		if ( $options['action'] !== 'update' || $options['type'] !== 'plugin' ) {
+		if ( $options['action'] !== 'update' ) {
+			return;
+		}
+
+		if ( $options['type'] === 'theme' ) {
+			update_option( 'theme_using_blocks', false );
+			return;
+		}
+
+		if ( $options['type'] !== 'plugin' ) {
 			return;
 		}
 
@@ -137,7 +142,6 @@ if ( WP_COMPATIBILITY_MODE === 2 ) :
 		update_option( 'plugins_using_blocks', $plugins_using_blocks );
 	}
 
-	add_action( 'delete_plugin', '_delete_who_uses_blocks', 10, 1 );
 	/**
 	 * Action hooked to delete_plugin to remove the plugin
 	 * that may not work properly.
@@ -151,6 +155,50 @@ if ( WP_COMPATIBILITY_MODE === 2 ) :
 			unset( $plugins_using_blocks[$plugin_file] );
 		}
 		update_option( 'plugins_using_blocks', $plugins_using_blocks );
+	}
+
+	/**
+	 * Action hooked to admin_notices to display an admin notice
+	 * on themes page.
+	 *
+	 * @return void
+	 */
+	function _using_block_function_theme( ) {
+		global $pagenow;
+		if ( $pagenow !== 'themes.php') {
+			return;
+		}
+		$theme_using_blocks = get_option( 'theme_using_blocks', '0' );
+		if ( ! in_array( $theme_using_blocks, array( '1', '2' ), true ) ) {
+			return;
+		}
+
+		if( $theme_using_blocks === '1' ) {
+			// Translators: %1$s is the theme name.
+			$message = sprintf ( esc_html__( '%1$s uses block-related functions and may not work correctly.' ), wp_get_theme()->get('Name') );
+		} else {
+			// Translators: %1$s is the theme name, %1$s is the parent theme name.
+			$message = sprintf ( esc_html__( '%1$s parent theme (%2$s) uses block-related functions and may not work correctly.' ), wp_get_theme()->get('Name'), wp_get_theme()->parent()->get('Name') );
+		}
+
+		?>
+		<div class="notice notice-alt notice-warning">
+			<p>
+			<?php
+				echo $message;
+			?>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Action hooked to after_switch_theme to remove the theme
+	 * that may not work properly.
+	 *
+	 * @return void
+	 */
+	function _delete_theme_uses_blocks( ) {
+		update_option( 'theme_using_blocks', '0' );
 	}
 
 endif; // WP_COMPATIBILITY_MODE === 2
